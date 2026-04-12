@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Recruiter Login — ResumeVis 2.0{% endblock %}
+{% block nav_links %}
+  <a class="nav-link" href="/">Home</a>
+  <a class="nav-pill" href="/recruiter/register">Register</a>
+{% endblock %}
+{% block extra_head %}
+<style>
+  .auth-wrap{min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;margin-top:-1.5rem;}
+  .auth-card{width:100%;max-width:420px;}
+  .auth-card .card-rv{background:linear-gradient(160deg,rgba(64,196,255,.07),rgba(0,229,160,.04),var(--card));border-radius:20px;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="card-rv">
+      <div style="text-align:center;margin-bottom:1.5rem;">
+        <div style="width:48px;height:48px;background:linear-gradient(135deg,var(--g2),var(--g3));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto .75rem;font-size:1.4rem;">💼</div>
+        <h5 style="font-weight:800;font-size:1.3rem;letter-spacing:-.3px;margin-bottom:.2rem;">Recruiter Login</h5>
+        <div style="font-size:.8rem;color:var(--muted2);">Find and hire verified talent</div>
+      </div>
+      <form action="/recruiter/login" method="POST">
+        <div style="margin-bottom:.85rem;">
+          <label class="form-label">Work Email</label>
+          <input type="email" name="email" class="form-control" placeholder="recruiter@company.com" required/>
+        </div>
+        <div style="margin-bottom:1.25rem;">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-control" placeholder="Your password" required/>
+        </div>
+        <button type="submit" class="btn-rv w-100" style="justify-content:center;padding:.65rem;font-size:.9rem;background:linear-gradient(135deg,var(--g2),var(--g3));color:#000;">
+          Login <i class="bi bi-arrow-right ms-1"></i>
+        </button>
+      </form>
+      <div style="text-align:center;margin-top:1.1rem;font-size:.8rem;color:var(--muted);">
+        New recruiter? <a href="/recruiter/register" style="color:var(--g2);font-weight:600;">Register here</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

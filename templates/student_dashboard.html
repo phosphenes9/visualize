@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ResumeVis 2.0{% endblock %}
+
+{% block nav_links %}
+  <span class="nav-link" style="cursor:default;color:var(--muted2)!important;">
+    <i class="bi bi-person-circle me-1"></i>{{ session.student_name }}
+  </span>
+  <a class="nav-pill" href="/student/logout"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Layout ── */
+  .dash-grid { display: grid; grid-template-columns: 300px 1fr; gap: 1.25rem; }
+  @media(max-width:900px){ .dash-grid{ grid-template-columns:1fr; } }
+
+  /* ── Sidebar ── */
+  .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+  /* ── Profile card ── */
+  .profile-card {
+    background: linear-gradient(160deg, rgba(124,107,255,0.12), rgba(64,196,255,0.06), transparent);
+    border: 1px solid var(--border2);
+    border-radius: 18px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  .avatar-circle {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--grad);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.4rem; color: #fff;
+    margin: 0 auto 0.75rem;
+  }
+  .profile-name { font-size: 1rem; font-weight: 700; }
+  .profile-email { font-size: 0.78rem; color: var(--muted2); }
+
+  /* ── Trust score card ── */
+  .ts-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
+  .ts-row { display: flex; align-items: center; gap: 1rem; }
+  .ts-big { font-size: 0.72rem; font-weight:700; text-transform: uppercase; letter-spacing:1.5px; color:var(--muted); margin-bottom: 0.6rem; }
+  .ts-breakdown { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+  .ts-item { font-size: 0.78rem; }
+  .ts-bar-track { height: 4px; background: rgba(255,255,255,0.07); border-radius: 2px; flex: 1; overflow: hidden; }
+  .ts-bar-fill  { height: 100%; border-radius: 2px; transition: width 1s ease; }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    border: 2px dashed rgba(255,255,255,0.1);
+    border-radius: 14px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .upload-zone:hover, .upload-zone.over {
+    border-color: var(--g1);
+    background: rgba(124,107,255,0.05);
+  }
+
+  /* ── Tab nav ── */
+  .tab-nav { display: flex; gap: 4px; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+  .tab-btn {
+    font-size: 0.82rem; font-weight: 600;
+    padding: 0.5rem 1rem;
+    border: none; background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all .18s;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--g1); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* ── Skill rows ── */
+  .skill-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 0.9rem;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    margin-bottom: 0.4rem;
+    transition: border-color .18s;
+  }
+  .skill-row:hover { border-color: rgba(124,107,255,0.35); }
+  .skill-score-bar { height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; width: 60px; overflow: hidden; margin-top: 3px; }
+  .skill-score-fill { height: 100%; background: var(--grad); border-radius: 2px; }
+
+  /* ── Cert rows ── */
+  .cert-row {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 0.7rem 0.9rem;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    margin-bottom: 0.4rem;
+    gap: 0.75rem;
+  }
+  .provider-pill {
+    font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    background: rgba(64,196,255,0.08); color: var(--g2);
+    border: 1px solid rgba(64,196,255,0.2);
+    border-radius: 20px; padding: 0.12rem 0.5rem;
+  }
+
+  /* ── Cert format helper ── */
+  .cert-helper {
+    background: rgba(124,107,255,0.06);
+    border: 1px solid rgba(124,107,255,0.15);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .cert-helper-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.25rem 0;
+    font-size: 0.75rem;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .cert-helper-item:last-child { border-bottom: none; }
+  .cert-code { font-family: monospace; font-size: 0.72rem; color: var(--g2); background: rgba(64,196,255,0.08); padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+  /* ── Job board ── */
+  .job-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    margin-bottom: 0.65rem;
+    transition: border-color .18s, background .18s;
+  }
+  .job-card:hover { border-color: rgba(124,107,255,0.35); background: rgba(124,107,255,0.04); }
+  .job-card.applied { border-color: rgba(0,229,160,0.2); }
+  .job-title { font-size: 0.92rem; font-weight: 700; }
+  .job-meta  { font-size: 0.75rem; color: var(--muted2); display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.25rem; }
+  .job-skills { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+  .skill-tag {
+    font-size: 0.7rem; font-weight: 600;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border2);
+    color: var(--muted2);
+    border-radius: 20px; padding: 0.15rem 0.55rem;
+  }
+
+  /* ── Applied card ── */
+  .app-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.5rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  }
+
+  /* ── Timeline ── */
+  .tl { position: relative; padding-left: 1.25rem; }
+  .tl::before { content:''; position:absolute; left:4px; top:8px; bottom:4px; width:2px; background: linear-gradient(180deg,var(--g1),transparent); border-radius:1px; }
+  .tl-item { display: flex; gap: 0.6rem; margin-bottom: 0.6rem; }
+  .tl-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set verified_skills = skills | selectattr("verified_status","equalto","verified") | list %}
+{% set verified_certs  = certs  | selectattr("verified_status","equalto","verified") | list %}
+
+<!-- Page header -->
+<div style="margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;">
+  <div>
+    <h4 style="font-weight:800;font-size:1.2rem;letter-spacing:-.3px;margin-bottom:2px;">
+      Good day, {{ student.name.split()[0] }} 👋
+    </h4>
+    <span class="text-muted-rv" style="font-size:.8rem;">{{ student.email }}</span>
+  </div>
+  <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+    <span class="badge-info"><i class="bi bi-briefcase me-1"></i>{{ my_apps|length }} Application{{ 's' if my_apps|length != 1 }}</span>
+    <span class="badge-v"><i class="bi bi-patch-check me-1"></i>{{ verified_skills|length }} Skills Verified</span>
+  </div>
+</div>
+
+<div class="dash-grid">
+  <!-- ══ SIDEBAR ══ -->
+  <div class="sidebar">
+
+    <!-- Profile -->
+    <div class="profile-card">
+      {% set ini = (student.name.split()[0][0] + (student.name.split()[1][0] if student.name.split()|length>1 else '')) | upper %}
+      <div class="avatar-circle">{{ ini }}</div>
+      <div class="profile-name">{{ student.name }}</div>
+      <div class="profile-email">{{ student.email }}</div>
+    </div>
+
+    <!-- Trust Score -->
+    <div class="ts-card">
+      <div class="ts-big">Trust Score</div>
+      <div class="ts-row">
+        <div class="trust-ring" style="--pct:{{trust_score}};width:72px;height:72px;"
+             title="Trust Score: {{trust_score}}/100">
+          <div style="position:absolute;width:54px;height:54px;background:var(--card);border-radius:50%;"></div>
+          <span class="ring-val" style="font-size:1.1rem;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{{ trust_score }}</span>
+        </div>
+        <div>
+          {% if trust_score >= 80 %}<div class="badge-v mb-1">Excellent</div>
+          {% elif trust_score >= 60 %}<div class="badge-info mb-1">Good</div>
+          {% elif trust_score >= 40 %}<div class="badge-amber mb-1">Fair</div>
+          {% else %}<div class="badge-u mb-1">Low</div>{% endif %}
+          <div style="font-size:.72rem;color:var(--muted);">out of 100</div>
+        </div>
+      </div>
+      <div class="ts-breakdown">
+        <div class="ts-item">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:3px;">
+            <span style="color:var(--muted2);">Resume</span>
+            <div class="ts-bar-track" style="flex:1;"><div class="ts-bar-fill" style="width:{{ 100 if resume else 0 }}%;background:var(--g1);"></div></div>
+            <span style="color:var(--muted);font-size:.7rem;">{{ 40 if resume else 0 }}/40</span>
+          </div>
+        </div>
+        <div class="ts-item">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:3px;">
+            <span style="color:var(--muted2);">Certifications</span>
+            <div class="ts-bar-track" style="flex:1;"><div class="ts-bar-fill" style="width:{{ [verified_certs|length*20,40]|min * 2.5 }}%;background:var(--g2);"></div></div>
+            <span style="color:var(--muted);font-size:.7rem;">{{ [verified_certs|length*20,40]|min }}/40</span>
+          </div>
+        </div>
+        <div class="ts-item">
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="color:var(--muted2);">Skills</span>
+            <div class="ts-bar-track" style="flex:1;"><div class="ts-bar-fill" style="width:{{ [verified_skills|length*10,20]|min * 5 }}%;background:var(--g3);"></div></div>
+            <span style="color:var(--muted);font-size:.7rem;">{{ [verified_skills|length*10,20]|min }}/20</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resume Upload -->
+    <div class="card-rv" style="padding:1.1rem;">
+      <div class="sec-label">Resume</div>
+      {% if student.resume_path %}
+      <div style="display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.15);border-radius:10px;margin-bottom:.75rem;">
+        <i class="bi bi-file-earmark-check-fill" style="color:var(--g3);font-size:1.1rem;"></i>
+        <div>
+          <div style="font-size:.8rem;font-weight:600;">{{ student.resume_path.split('_',1)[1] if '_' in student.resume_path else student.resume_path }}</div>
+          <div style="font-size:.7rem;color:var(--muted);">Parsed & stored</div>
+        </div>
+      </div>
+      {% endif %}
+      <form action="/student/upload_resume" method="POST" enctype="multipart/form-data" id="uploadForm">
+        <div class="upload-zone" id="upZone" onclick="document.getElementById('fileIn').click()">
+          <i class="bi bi-cloud-arrow-up" style="font-size:1.6rem;color:var(--g1);display:block;margin-bottom:.4rem;"></i>
+          <div style="font-size:.8rem;font-weight:600;">Drop or click to upload</div>
+          <div style="font-size:.72rem;color:var(--muted);">PDF or DOCX · max 10MB</div>
+          <div id="fileName" style="font-size:.75rem;color:var(--g2);margin-top:.4rem;"></div>
+        </div>
+        <input type="file" id="fileIn" name="resume" accept=".pdf,.doc,.docx" hidden/>
+        <button type="submit" class="btn-rv w-100 mt-2" style="justify-content:center;">
+          <i class="bi bi-upload"></i> Upload & Parse
+        </button>
+      </form>
+    </div>
+
+    <!-- Education timeline -->
+    {% if resume and resume.education %}
+    <div class="card-rv" style="padding:1.1rem;">
+      <div class="sec-label">Education</div>
+      <div class="tl">
+        {% for e in resume.education[:5] %}
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--g1);"></div>
+          <div style="font-size:.8rem;">{{ e }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Experience timeline -->
+    {% if resume and resume.experience %}
+    <div class="card-rv" style="padding:1.1rem;">
+      <div class="sec-label">Experience</div>
+      <div class="tl">
+        {% for e in resume.experience[:5] %}
+        <div class="tl-item">
+          <div class="tl-dot" style="background:var(--g2);"></div>
+          <div style="font-size:.8rem;">{{ e }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /sidebar -->
+
+  <!-- ══ MAIN ══ -->
+  <div>
+
+    <!-- Stats row -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem;">
+      {% for val, label, color in [
+        (trust_score, 'Trust Score', 'var(--g1)'),
+        (verified_skills|length, 'Verified Skills', 'var(--g3)'),
+        (verified_certs|length, 'Verified Certs', 'var(--g2)'),
+        (my_apps|length, 'Applications', 'var(--g5)')
+      ] %}
+      <div class="card-rv" style="padding:.9rem 1rem;text-align:center;">
+        <div style="font-size:1.6rem;font-weight:800;color:{{ color }};line-height:1;">{{ val }}</div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:1px;">{{ label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Tabs -->
+    <div class="tab-nav" id="mainTabs">
+      <button class="tab-btn active" onclick="switchTab('jobs')" id="tab-jobs">
+        <i class="bi bi-briefcase-fill"></i> Job Board
+        {% if all_jobs %}<span style="background:rgba(124,107,255,.2);color:var(--g1);border-radius:20px;padding:.05rem .4rem;font-size:.68rem;">{{ all_jobs|length }}</span>{% endif %}
+      </button>
+      <button class="tab-btn" onclick="switchTab('skills')" id="tab-skills">
+        <i class="bi bi-lightning-fill"></i> Skills
+        {% if skills %}<span style="background:rgba(0,229,160,.12);color:var(--g3);border-radius:20px;padding:.05rem .4rem;font-size:.68rem;">{{ skills|length }}</span>{% endif %}
+      </button>
+      <button class="tab-btn" onclick="switchTab('certs')" id="tab-certs">
+        <i class="bi bi-award-fill"></i> Certifications
+        {% if certs %}<span style="background:rgba(64,196,255,.12);color:var(--g2);border-radius:20px;padding:.05rem .4rem;font-size:.68rem;">{{ certs|length }}</span>{% endif %}
+      </button>
+      <button class="tab-btn" onclick="switchTab('charts')" id="tab-charts">
+        <i class="bi bi-bar-chart-fill"></i> Analytics
+      </button>
+      <button class="tab-btn" onclick="switchTab('applied')" id="tab-applied">
+        <i class="bi bi-send-fill"></i> My Applications
+        {% if my_apps %}<span style="background:rgba(255,181,71,.12);color:var(--g5);border-radius:20px;padding:.05rem .4rem;font-size:.68rem;">{{ my_apps|length }}</span>{% endif %}
+      </button>
+    </div>
+
+    <!-- ── Tab: Job Board ── -->
+    <div class="tab-pane active" id="pane-jobs">
+      {% if all_jobs %}
+        {% for job in all_jobs %}
+        <div class="job-card {{ 'applied' if job.applied }}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;flex-wrap:wrap;">
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+                <span class="job-title">{{ job.title }}</span>
+                {% if job.applied %}
+                  {% if job.quiz_done %}
+                    <span class="badge-v"><i class="bi bi-check-circle-fill"></i> Quiz Done</span>
+                  {% else %}
+                    <span class="badge-amber">Applied</span>
+                  {% endif %}
+                {% endif %}
+                {% if job.job_type %}<span class="badge-info">{{ job.job_type }}</span>{% endif %}
+              </div>
+              <div class="job-meta">
+                <span><i class="bi bi-building me-1"></i>{{ job.company or 'Company' }}</span>
+                {% if job.location %}<span><i class="bi bi-geo-alt me-1"></i>{{ job.location }}</span>{% endif %}
+                {% if job.salary %}<span><i class="bi bi-currency-rupee me-1"></i>{{ job.salary }}</span>{% endif %}
+              </div>
+              {% if job.description %}
+              <div style="font-size:.78rem;color:var(--muted2);margin-top:.35rem;line-height:1.5;">
+                {{ job.description[:160] }}{% if job.description|length > 160 %}…{% endif %}
+              </div>
+              {% endif %}
+              {% if job.skills_required %}
+              <div class="job-skills">
+                {% for sk in job.skills_required %}
+                <span class="skill-tag">{{ sk }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;flex-shrink:0;">
+              {% if not job.applied %}
+              <form action="/student/apply/{{ job._id }}" method="POST">
+                <button type="submit" class="btn-rv"><i class="bi bi-send"></i> Apply</button>
+              </form>
+              {% elif not job.quiz_done and job.skills_required %}
+              <a href="/student/quiz/{{ job.skills_required[0] }}/{{ job._id }}" class="btn-rv" style="background:linear-gradient(135deg,var(--g3),var(--g2));font-size:.78rem;">
+                <i class="bi bi-play-fill"></i> Take Quiz
+              </a>
+              {% else %}
+              <span class="badge-v" style="padding:.3rem .7rem;"><i class="bi bi-check2-circle me-1"></i>Complete</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:3rem;color:var(--muted);">
+          <i class="bi bi-briefcase" style="font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.4;"></i>
+          <div style="font-weight:600;">No jobs posted yet</div>
+          <div style="font-size:.8rem;margin-top:.3rem;">Recruiters haven't posted any openings. Check back soon!</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Tab: Skills ── -->
+    <div class="tab-pane" id="pane-skills">
+      {% if skills %}
+        {% for sk in skills %}
+        <div class="skill-row">
+          <div>
+            <div style="font-weight:600;font-size:.88rem;">{{ sk.skill_name }}</div>
+            <div class="skill-score-bar">
+              <div class="skill-score-fill" style="width:{{ sk.quiz_score or 0 }}%;"></div>
+            </div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">{{ sk.quiz_score or 0 }}% quiz score</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            {% if sk.verified_status == 'verified' %}
+              <span class="badge-v"><i class="bi bi-check-circle-fill"></i>Verified</span>
+            {% else %}
+              <span class="badge-u"><i class="bi bi-exclamation-circle"></i>Unverified</span>
+              <a href="/student/quiz/{{ sk.skill_name }}" class="btn-rv" style="font-size:.75rem;padding:.3rem .75rem;">
+                <i class="bi bi-play-fill"></i> Verify
+              </a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:3rem;color:var(--muted);">
+          <i class="bi bi-lightning" style="font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.4;"></i>
+          <div style="font-weight:600;">No skills extracted yet</div>
+          <div style="font-size:.8rem;margin-top:.3rem;">Upload your resume to auto-extract skills.</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Tab: Certifications ── -->
+    <div class="tab-pane" id="pane-certs">
+
+      <!-- Format guide -->
+      <div class="cert-helper">
+        <div style="font-size:.72rem;font-weight:700;color:var(--g1);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:.5rem;">
+          <i class="bi bi-info-circle me-1"></i>Accepted Certificate ID Formats
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">Coursera</span>
+          <span class="cert-code">SJLWW7OCRXN7</span>
+          <span style="color:var(--muted);font-size:.7rem;">12-char alphanumeric</span>
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">AWS</span>
+          <span class="cert-code">AWS-001234567</span>
+          <span style="color:var(--muted);font-size:.7rem;">AWS- + 9 digits, or 12–16 alphanum</span>
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">Google Cloud</span>
+          <span class="cert-code">b55c393686754034aa9c99cb99868e2e</span>
+          <span style="color:var(--muted);font-size:.7rem;">32-char hex</span>
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">Microsoft</span>
+          <span class="cert-code">ABCD-1234-EFGH-5678</span>
+          <span style="color:var(--muted);font-size:.7rem;">4×4 groups with hyphens</span>
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">NPTEL</span>
+          <span class="cert-code">NPTELNOC24CS12345</span>
+          <span style="color:var(--muted);font-size:.7rem;">NPTEL + 8–15 alphanumeric</span>
+        </div>
+        <div class="cert-helper-item">
+          <span style="color:var(--muted2);font-weight:600;">Generic</span>
+          <span class="cert-code">ABC123DEF456</span>
+          <span style="color:var(--muted);font-size:.7rem;">10–32 alphanumeric + hyphens</span>
+        </div>
+      </div>
+
+      <!-- Add cert form -->
+      <form action="/student/add_cert" method="POST" class="card-rv mb-1" style="padding:1rem;">
+        <div class="sec-label">Add Certificate</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:.6rem;align-items:end;">
+          <div>
+            <label class="form-label">Provider & Name</label>
+            <input type="text" name="cert_name" class="form-control" placeholder="e.g. AWS Solutions Architect" required/>
+          </div>
+          <div>
+            <label class="form-label">Certificate ID</label>
+            <input type="text" name="cert_number" class="form-control" placeholder="e.g. SJLWW7OCRXN7" required/>
+          </div>
+          <button type="submit" class="btn-rv" style="height:38px;"><i class="bi bi-plus-lg"></i> Add</button>
+        </div>
+      </form>
+
+      <!-- Cert list -->
+      {% if certs %}
+        {% for c in certs %}
+        <div class="cert-row">
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:.88rem;">{{ c.cert_name }}</div>
+            <div style="display:flex;align-items:center;gap:.4rem;margin-top:.25rem;">
+              <span class="provider-pill">{{ c.get('provider','—') }}</span>
+              <span style="font-family:monospace;font-size:.72rem;color:var(--muted);">{{ c.cert_number }}</span>
+            </div>
+          </div>
+          {% if c.verified_status == 'verified' %}
+            <span class="badge-v"><i class="bi bi-award-fill"></i> Verified ✅</span>
+          {% else %}
+            <span class="badge-u"><i class="bi bi-exclamation-triangle"></i> Unverified ⚠️</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:2.5rem;color:var(--muted);">
+          <i class="bi bi-award" style="font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.4;"></i>
+          <div>No certificates added yet</div>
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Tab: Analytics ── -->
+    <div class="tab-pane" id="pane-charts">
+      {% if skills %}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div class="card-rv">
+          <div class="sec-label">Skill Quiz Scores</div>
+          <canvas id="barChart" height="220"></canvas>
+        </div>
+        <div class="card-rv">
+          <div class="sec-label">Verification Ratio</div>
+          <canvas id="doughChart" height="220"></canvas>
+        </div>
+      </div>
+      {% else %}
+      <div style="text-align:center;padding:3rem;color:var(--muted);">
+        <i class="bi bi-bar-chart" style="font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.4;"></i>
+        Upload your resume to see analytics
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- ── Tab: My Applications ── -->
+    <div class="tab-pane" id="pane-applied">
+      {% if my_apps %}
+        {% for app in my_apps %}
+        <div class="app-card">
+          <div style="flex:1;">
+            <div style="font-weight:700;font-size:.9rem;">{{ app.job_title or 'Unknown Job' }}</div>
+            {% if app.job %}
+            <div style="font-size:.75rem;color:var(--muted2);margin-top:.2rem;">
+              <i class="bi bi-building me-1"></i>{{ app.job.get('company','') }}
+              {% if app.job.get('location') %} · <i class="bi bi-geo-alt me-1"></i>{{ app.job.location }}{% endif %}
+            </div>
+            {% endif %}
+            <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem;">Applied {{ app.get('applied_at','')|string|truncate(10,true,'') }}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.5rem;">
+            {% if app.quiz_done %}
+              <span class="badge-v"><i class="bi bi-check2-circle me-1"></i>Quiz {{ app.quiz_score }}%</span>
+            {% elif app.job and app.job.get('skills_required') %}
+              <a href="/student/quiz/{{ app.job.skills_required[0] }}/{{ app.job_id }}" class="btn-rv" style="font-size:.75rem;padding:.3rem .75rem;background:linear-gradient(135deg,var(--g3),var(--g2));">
+                <i class="bi bi-play-fill"></i> Take Quiz
+              </a>
+            {% endif %}
+            {% if app.app_status == 'quiz_completed' %}
+              <span class="badge-info">Submitted</span>
+            {% else %}
+              <span class="badge-amber">Pending</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="text-align:center;padding:3rem;color:var(--muted);">
+          <i class="bi bi-send" style="font-size:2.5rem;display:block;margin-bottom:.75rem;opacity:.4;"></i>
+          <div style="font-weight:600;">No applications yet</div>
+          <div style="font-size:.8rem;margin-top:.3rem;">Browse the Job Board and apply!</div>
+        </div>
+      {% endif %}
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /dash-grid -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('pane-'+name).classList.add('active');
+}
+
+// Upload zone
+const fileIn = document.getElementById('fileIn');
+const upZone = document.getElementById('upZone');
+const fileName = document.getElementById('fileName');
+if(fileIn){
+  fileIn.addEventListener('change', () => {
+    if(fileIn.files[0]){ fileName.textContent = '📄 ' + fileIn.files[0].name; upZone.style.borderColor='var(--g1)'; }
+  });
+  ['dragover','dragenter'].forEach(e => upZone.addEventListener(e, ev => { ev.preventDefault(); upZone.classList.add('over'); }));
+  ['dragleave','drop'].forEach(e => upZone.addEventListener(e, ev => {
+    ev.preventDefault(); upZone.classList.remove('over');
+    if(e === 'drop' && ev.dataTransfer.files[0]) { fileIn.files = ev.dataTransfer.files; fileName.textContent = '📄 ' + ev.dataTransfer.files[0].name; }
+  }));
+}
+
+// Charts
+const skillNames  = {{ skill_names  | safe }};
+const skillScores = {{ skill_scores | safe }};
+const skillStatus = {{ skill_status | safe }};
+
+if (skillNames.length > 0 && document.getElementById('barChart')) {
+  const colors = skillStatus.map(s => s === 'verified' ? 'rgba(0,229,160,.75)' : 'rgba(124,107,255,.6)');
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: { labels: skillNames, datasets: [{
+      label: 'Quiz Score (%)', data: skillScores,
+      backgroundColor: colors, borderRadius: 6, borderSkipped: false
+    }]},
+    options: { responsive:true, plugins:{legend:{display:false}},
+      scales: { y:{beginAtZero:true,max:100,grid:{color:'rgba(255,255,255,.04)'}},
+                x:{grid:{display:false},ticks:{maxRotation:40,font:{size:10}}} }}
+  });
+  const vc = skillStatus.filter(s=>s==='verified').length;
+  new Chart(document.getElementById('doughChart'), {
+    type: 'doughnut',
+    data: { labels: ['Verified','Unverified'],
+      datasets: [{data:[vc,skillStatus.length-vc],
+        backgroundColor:['rgba(0,229,160,.7)','rgba(255,101,132,.55)'],
+        borderColor:['#00e5a0','#ff6584'], borderWidth:2 }]},
+    options: { responsive:true, cutout:'65%',
+      plugins:{legend:{position:'bottom',labels:{padding:12}}} }
+  });
+}
+</script>
+{% endblock %}

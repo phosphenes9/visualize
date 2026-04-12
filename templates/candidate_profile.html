@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}{{ student.name }} — ResumeVis 2.0{% endblock %}
+
+{% block nav_links %}
+  <a class="nav-link" href="/recruiter/dashboard">← Talent Pool</a>
+  <a class="nav-link" href="/recruiter/logout">Logout</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .profile-header {
+    background: var(--rv-card);
+    border: 1px solid var(--rv-border);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .avatar-lg {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:1.6rem;
+    background: linear-gradient(135deg, var(--rv-accent), var(--rv-cyan));
+    color: #fff; flex-shrink: 0;
+  }
+  .chart-wrap { background: var(--rv-card); border: 1px solid var(--rv-border); border-radius: 16px; padding: 1.5rem; }
+  .detail-item { padding: 0.6rem 0; border-bottom: 1px solid var(--rv-border); display:flex; justify-content:space-between; align-items:center; font-size:0.9rem; }
+  .detail-item:last-child { border-bottom: none; }
+  .timeline-line { position: relative; padding-left: 1.5rem; }
+  .timeline-line::before { content:''; position:absolute; left:4px; top:8px; bottom:8px; width:2px; background:linear-gradient(180deg,var(--rv-accent),transparent); }
+  .edu-item { display:flex; gap:0.75rem; margin-bottom:0.75rem; }
+  .edu-dot { width:10px;height:10px;background:var(--rv-accent);border-radius:50%;flex-shrink:0;margin-top:5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="py-2">
+
+  <!-- Back -->
+  <a href="/recruiter/dashboard" style="color:var(--rv-muted);font-size:0.85rem;text-decoration:none;">
+    <i class="bi bi-arrow-left me-1"></i>Back to Talent Pool
+  </a>
+
+  <!-- Profile Header -->
+  <div class="profile-header mt-3">
+    <div class="d-flex align-items-center gap-4 flex-wrap">
+      {% set initials = (student.name.split()[0][0] + (student.name.split()[1][0] if student.name.split()|length > 1 else '')) | upper %}
+      <div class="avatar-lg">{{ initials }}</div>
+      <div class="flex-grow-1">
+        <h3 class="syne fw-bold mb-0" style="font-size:1.8rem;letter-spacing:-0.5px;">{{ student.name }}</h3>
+        <div style="color:var(--rv-muted);font-size:0.88rem;">{{ student.email }}</div>
+      </div>
+      <div class="text-center">
+        <div class="trust-ring" style="--pct:{{ trust_score }}%; width:90px;height:90px;font-size:1.4rem;">
+          <span>{{ trust_score }}</span>
+        </div>
+        <div style="font-size:0.75rem;color:var(--rv-muted);margin-top:0.4rem;">Trust Score</div>
+      </div>
+    </div>
+
+    <!-- Score breakdown -->
+    <div class="row g-3 mt-3">
+      {% set vcerts  = certs  | selectattr("verified_status","equalto","verified") | list %}
+      {% set vskills = skills | selectattr("verified_status","equalto","verified") | list %}
+      <div class="col-4 text-center">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--rv-accent);">
+          {{ 40 if resume else 0 }}
+        </div>
+        <div style="font-size:0.75rem;color:var(--rv-muted);">Degree Pts</div>
+      </div>
+      <div class="col-4 text-center">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--rv-cyan);">
+          {{ [vcerts|length * 20, 40]|min }}
+        </div>
+        <div style="font-size:0.75rem;color:var(--rv-muted);">Cert Pts</div>
+      </div>
+      <div class="col-4 text-center">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.6rem;color:var(--rv-green);">
+          {{ [vskills|length * 10, 20]|min }}
+        </div>
+        <div style="font-size:0.75rem;color:var(--rv-muted);">Skill Pts</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- LEFT -->
+    <div class="col-lg-5">
+
+      <!-- Skills -->
+      <div class="rv-card mb-4">
+        <div class="section-title">Skills</div>
+        {% for sk in skills %}
+        <div class="detail-item">
+          <div>
+            <span style="font-weight:600;">{{ sk.skill_name }}</span>
+            {% if sk.quiz_score %}<span style="font-size:0.78rem;color:var(--rv-muted);margin-left:6px;">{{ sk.quiz_score }}%</span>{% endif %}
+          </div>
+          {% if sk.verified_status == 'verified' %}
+            <span class="badge-verified"><i class="bi bi-check-circle-fill me-1"></i>Verified</span>
+          {% else %}
+            <span class="badge-unverified"><i class="bi bi-exclamation-circle me-1"></i>Unverified</span>
+          {% endif %}
+        </div>
+        {% else %}
+          <div class="text-muted-rv" style="font-size:0.88rem;">No skills listed</div>
+        {% endfor %}
+      </div>
+
+      <!-- Certificates -->
+      <div class="rv-card mb-4">
+        <div class="section-title">Certifications</div>
+        {% for c in certs %}
+        <div class="detail-item">
+          <div>
+            <div style="font-weight:600;font-size:0.88rem;">{{ c.cert_name }}</div>
+            <div style="font-size:0.75rem;color:var(--rv-muted);">{{ c.cert_number }}</div>
+          </div>
+          {% if c.verified_status == 'verified' %}
+            <span class="badge-verified">✅ Verified</span>
+          {% else %}
+            <span class="badge-unverified">⚠️ Unverified</span>
+          {% endif %}
+        </div>
+        {% else %}
+          <div class="text-muted-rv" style="font-size:0.88rem;">No certifications added</div>
+        {% endfor %}
+      </div>
+
+      <!-- Education -->
+      {% if resume and resume.education %}
+      <div class="rv-card mb-4">
+        <div class="section-title">Education</div>
+        <div class="timeline-line">
+          {% for e in resume.education[:6] %}
+          <div class="edu-item">
+            <div class="edu-dot"></div>
+            <div style="font-size:0.85rem;">{{ e }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Experience -->
+      {% if resume and resume.experience %}
+      <div class="rv-card">
+        <div class="section-title">Experience</div>
+        <div class="timeline-line">
+          {% for ex in resume.experience[:6] %}
+          <div class="edu-item">
+            <div class="edu-dot" style="background:var(--rv-cyan);"></div>
+            <div style="font-size:0.85rem;">{{ ex }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- RIGHT — Charts -->
+    <div class="col-lg-7">
+      {% if skills %}
+      <div class="chart-wrap mb-4">
+        <div class="section-title">Skill Scores</div>
+        <canvas id="skillChart" height="220"></canvas>
+      </div>
+      <div class="chart-wrap">
+        <div class="section-title">Verification Overview</div>
+        <canvas id="statusChart" height="180"></canvas>
+      </div>
+      {% else %}
+      <div class="rv-card text-center py-5 text-muted-rv">
+        <i class="bi bi-bar-chart" style="font-size:3rem;display:block;"></i>
+        <div class="mt-2">No skill data available for visualization</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const skillNames  = {{ skill_names | safe }};
+const skillScores = {{ skill_scores | safe }};
+const skillStatus = {{ skill_status | safe }};
+
+if (skillNames.length > 0) {
+  const barColors = skillStatus.map(s =>
+    s === 'verified' ? 'rgba(0,229,160,0.75)' : 'rgba(108,99,255,0.6)'
+  );
+  new Chart(document.getElementById('skillChart'), {
+    type: 'bar',
+    data: {
+      labels: skillNames,
+      datasets: [{
+        label: 'Quiz Score (%)',
+        data: skillScores,
+        backgroundColor: barColors,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero:true, max:100, grid:{color:'#2a2a3d'} },
+        x: { grid:{display:false}, ticks:{maxRotation:45} }
+      }
+    }
+  });
+
+  const vCount  = skillStatus.filter(s => s === 'verified').length;
+  const uvCount = skillStatus.length - vCount;
+  new Chart(document.getElementById('statusChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Verified', 'Unverified'],
+      datasets: [{
+        data: [vCount, uvCount],
+        backgroundColor: ['rgba(0,229,160,0.7)','rgba(255,112,67,0.6)'],
+        borderRadius: 8,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { grid:{color:'#2a2a3d'}, ticks:{precision:0} },
+        y: { grid:{display:false} }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

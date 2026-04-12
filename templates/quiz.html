@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}Quiz: {{ skill_name }} — ResumeVis 2.0{% endblock %}
+
+{% block nav_links %}
+  <a class="nav-link" href="/student/dashboard">
+    <i class="bi bi-grid me-1"></i>Dashboard
+  </a>
+  <a class="nav-link" href="/student/logout">
+    <i class="bi bi-box-arrow-right me-1"></i>Logout
+  </a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .quiz-wrap { max-width: 740px; margin: 0 auto; padding: 1.5rem 0 5rem; }
+
+  /* Sticky timer bar */
+  .timer-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(19,19,28,0.95);
+    border-bottom: 1px solid var(--rv-border);
+    padding: 0.75rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0 -1rem 2rem;
+    backdrop-filter: blur(12px);
+  }
+  .timer-clock {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.45rem;
+    letter-spacing: 2px;
+    min-width: 94px;
+    transition: color 0.3s;
+    color: var(--rv-green);
+  }
+  .timer-clock.warning { color: #ffc107; }
+  .timer-clock.danger  { color: var(--rv-orange); animation: pulse-danger 0.7s infinite; }
+  @keyframes pulse-danger { 0%,100%{opacity:1} 50%{opacity:0.45} }
+
+  .timer-track {
+    flex: 1;
+    height: 7px;
+    background: var(--rv-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .timer-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg, var(--rv-green), var(--rv-cyan));
+    transition: width 1s linear, background 0.5s;
+  }
+  .timer-fill.warning { background: linear-gradient(90deg, #ffc107, #ff7043); }
+  .timer-fill.danger  { background: var(--rv-orange); }
+
+  .q-count-badge {
+    background: rgba(108,99,255,0.15);
+    border: 1px solid rgba(108,99,255,0.3);
+    color: var(--rv-accent);
+    border-radius: 20px;
+    padding: 0.22rem 0.8rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  /* Question cards */
+  .q-card {
+    background: var(--rv-card);
+    border: 1px solid var(--rv-border);
+    border-radius: 16px;
+    padding: 1.75rem;
+    margin-bottom: 1.25rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .q-card.answered { border-color: rgba(108,99,255,0.45); box-shadow: 0 0 0 1px rgba(108,99,255,0.12); }
+
+  .q-num {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--rv-accent);
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .dot-answered {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--rv-green);
+    display: none;
+    flex-shrink: 0;
+  }
+  .q-card.answered .dot-answered { display: inline-block; }
+
+  .q-text { font-size: 1.02rem; font-weight: 600; margin-bottom: 1.25rem; line-height: 1.55; }
+
+  .option-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rv-border);
+    border-radius: 10px;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .option-label:hover { border-color: var(--rv-accent); background: rgba(108,99,255,0.07); transform: translateX(2px); }
+  input[type=radio] { display: none; }
+  input[type=radio]:checked + .option-label { border-color: var(--rv-accent); background: rgba(108,99,255,0.13); }
+  input[type=radio]:checked + .option-label .option-letter { background: var(--rv-accent); color: #fff; }
+
+  .option-letter {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--rv-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 700; flex-shrink: 0;
+    font-family: 'Syne', sans-serif;
+    transition: background 0.15s;
+  }
+
+  /* Sticky footer */
+  .quiz-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    background: rgba(19,19,28,0.97);
+    border-top: 1px solid var(--rv-border);
+    padding: 0.85rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(12px);
+    gap: 1rem;
+    z-index: 99;
+  }
+  .answer-dots { display: flex; gap: 0.4rem; }
+  .answer-dot {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--rv-border);
+    transition: background 0.3s, transform 0.2s;
+  }
+  .answer-dot.done { background: var(--rv-green); transform: scale(1.2); }
+
+  /* Timeout overlay */
+  .timeout-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(10,10,15,0.93);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .timeout-overlay.show { display: flex; }
+  .timeout-box {
+    background: var(--rv-card);
+    border: 1px solid var(--rv-border);
+    border-radius: 20px;
+    padding: 2.5rem 3rem;
+    max-width: 400px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quiz-wrap">
+
+  <!-- Sticky Timer -->
+  <div class="timer-sticky">
+    <div class="timer-clock" id="timerClock">
+      <i class="bi bi-stopwatch-fill"></i>
+      <span id="timerDisplay">05:00</span>
+    </div>
+    <div class="timer-track">
+      <div class="timer-fill" id="timerFill" style="width:100%"></div>
+    </div>
+    <div class="q-count-badge" id="answerBadge">0 / {{ questions|length }} answered</div>
+  </div>
+
+  <!-- Header -->
+  <div class="mb-4">
+    <a href="/student/dashboard" style="color:var(--rv-muted);font-size:0.85rem;text-decoration:none;">
+      <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+    </a>
+    <h3 class="syne fw-bold mt-2 mb-0" style="font-size:1.9rem;letter-spacing:-0.5px;">
+      <i class="bi bi-patch-question-fill text-accent me-2"></i>{{ skill_name }} Quiz
+    </h3>
+    <div style="font-size:0.88rem;color:var(--rv-muted);margin-top:0.3rem;">
+      {{ questions|length }} questions &nbsp;·&nbsp;
+      <i class="bi bi-stopwatch me-1"></i>5 minute countdown &nbsp;·&nbsp;
+      Score ≥ 70% to earn Verified ✅
+    </div>
+  </div>
+
+  <!-- Form -->
+  <form action="/student/quiz/{{ skill_name }}/submit" method="POST" id="quizForm">
+    {% for q in questions %}
+    <div class="q-card" id="qcard_{{ loop.index0 }}">
+      <div class="q-num">
+        <span class="dot-answered"></span>
+        Question {{ loop.index }} of {{ questions|length }}
+      </div>
+      <div class="q-text">{{ q.question }}</div>
+
+      {% for opt, letter in [('optionA','A'),('optionB','B'),('optionC','C'),('optionD','D')] %}
+        {% if q[opt] %}
+        <input type="radio"
+               name="q_{{ q._id }}"
+               id="q{{ q._id }}_{{ letter }}"
+               value="{{ letter }}"
+               class="quiz-radio"
+               data-qidx="{{ loop.index0 }}"/>
+        <label class="option-label" for="q{{ q._id }}_{{ letter }}">
+          <div class="option-letter">{{ letter }}</div>
+          <span>{{ q[opt] }}</span>
+        </label>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </form>
+
+  <!-- Fixed bottom bar -->
+  <div class="quiz-footer">
+    <div>
+      <div style="font-size:0.72rem;color:var(--rv-muted);margin-bottom:0.3rem;text-transform:uppercase;letter-spacing:1px;">Progress</div>
+      <div class="answer-dots">
+        {% for q in questions %}
+        <div class="answer-dot" id="dot_{{ loop.index0 }}" title="Question {{ loop.index }}"></div>
+        {% endfor %}
+      </div>
+    </div>
+    <button type="button" class="btn btn-rv px-4 py-2" onclick="confirmSubmit()">
+      <i class="bi bi-check2-circle me-1"></i>Submit Quiz
+    </button>
+  </div>
+
+</div>
+
+<!-- Time-up overlay -->
+<div class="timeout-overlay" id="timeoutOverlay">
+  <div class="timeout-box">
+    <div style="font-size:3.5rem;margin-bottom:0.75rem;">⏰</div>
+    <h4 class="syne fw-bold" style="font-size:1.5rem;letter-spacing:-0.5px;">Time's Up!</h4>
+    <p style="color:var(--rv-muted);font-size:0.9rem;margin-bottom:1.5rem;">
+      Your answers are being submitted automatically.
+    </p>
+    <div class="spinner-border text-accent" role="status" style="width:1.5rem;height:1.5rem;"></div>
+    <div style="font-size:0.8rem;color:var(--rv-muted);margin-top:0.6rem;">Submitting…</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const TOTAL_SECONDS = 5 * 60;          // 5 minutes
+const totalQ        = {{ questions|length }};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let secondsLeft  = TOTAL_SECONDS;
+let timerRunning = true;
+const answeredSet = new Set();   // tracks which question names are answered
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const clock   = document.getElementById('timerClock');
+const display = document.getElementById('timerDisplay');
+const fill    = document.getElementById('timerFill');
+const badge   = document.getElementById('answerBadge');
+const overlay = document.getElementById('timeoutOverlay');
+const form    = document.getElementById('quizForm');
+const qCards  = document.querySelectorAll('.q-card');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const pad = n => String(n).padStart(2, '0');
+
+function updateTimerUI() {
+  const m = Math.floor(secondsLeft / 60);
+  const s = secondsLeft % 60;
+  display.textContent = pad(m) + ':' + pad(s);
+
+  const pct = (secondsLeft / TOTAL_SECONDS) * 100;
+  fill.style.width = pct + '%';
+
+  clock.classList.remove('warning', 'danger');
+  fill.classList.remove('warning', 'danger');
+
+  if (secondsLeft <= 30) {
+    clock.classList.add('danger');
+    fill.classList.add('danger');
+  } else if (secondsLeft <= 60) {
+    clock.classList.add('warning');
+    fill.classList.add('warning');
+  }
+}
+
+// ── Countdown ─────────────────────────────────────────────────────────────────
+const countdown = setInterval(() => {
+  if (!timerRunning) return;
+  secondsLeft--;
+  updateTimerUI();
+  if (secondsLeft <= 0) {
+    clearInterval(countdown);
+    timeUp();
+  }
+}, 1000);
+
+function timeUp() {
+  timerRunning = false;
+  overlay.classList.add('show');
+  setTimeout(() => form.submit(), 1800);
+}
+
+// ── Answer tracking ───────────────────────────────────────────────────────────
+document.querySelectorAll('.quiz-radio').forEach(radio => {
+  radio.addEventListener('change', () => {
+    const name = radio.name;
+    if (!answeredSet.has(name)) {
+      answeredSet.add(name);
+
+      // Find the card containing this radio and mark answered
+      const card = radio.closest('.q-card');
+      if (card) {
+        card.classList.add('answered');
+        const idx = [...qCards].indexOf(card);
+        const dot = document.getElementById('dot_' + idx);
+        if (dot) dot.classList.add('done');
+      }
+
+      badge.textContent = answeredSet.size + ' / ' + totalQ + ' answered';
+    }
+  });
+});
+
+// ── Submit button ─────────────────────────────────────────────────────────────
+function confirmSubmit() {
+  const unanswered = totalQ - answeredSet.size;
+  if (unanswered > 0) {
+    if (!confirm(`${unanswered} question${unanswered > 1 ? 's' : ''} unanswered. Submit anyway?`)) return;
+  }
+  timerRunning = false;
+  clearInterval(countdown);
+  form.submit();
+}
+
+// Init
+updateTimerUI();
+</script>
+{% endblock %}

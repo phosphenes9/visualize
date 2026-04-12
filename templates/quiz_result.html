@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Quiz Result — ResumeVis 2.0{% endblock %}
+{% block nav_links %}
+  <a class="nav-link" href="/student/dashboard">Dashboard</a>
+  <a class="nav-pill" href="/student/logout"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+{% endblock %}
+{% block extra_head %}
+<style>
+  .result-wrap{max-width:520px;margin:4rem auto;text-align:center;}
+  .result-icon{font-size:4rem;margin-bottom:.75rem;animation:pop .5s ease;}
+  @keyframes pop{0%{transform:scale(0)}80%{transform:scale(1.15)}100%{transform:scale(1)}}
+  .score-display{font-size:4rem;font-weight:800;line-height:1;letter-spacing:-2px;}
+  .res-bar{height:10px;background:rgba(255,255,255,.07);border-radius:5px;overflow:hidden;margin:1.25rem 0;}
+  .res-bar-fill{height:100%;border-radius:5px;transition:width 1.2s cubic-bezier(.4,0,.2,1);width:0;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="result-wrap">
+  <div class="card-rv" style="padding:2.5rem 2rem;background:linear-gradient(160deg,rgba(124,107,255,.06),rgba(64,196,255,.03),var(--card));">
+    {% if passed %}
+      <div class="result-icon">🎉</div>
+      <div class="score-display" style="background:linear-gradient(135deg,var(--g3),var(--g2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{{ score }}%</div>
+      <div class="badge-v" style="font-size:.88rem;margin:.75rem auto .5rem;display:inline-flex;gap:5px;padding:.3rem .9rem;">
+        <i class="bi bi-check-circle-fill"></i> {{ skill_name }} — Verified!
+      </div>
+      <p style="color:var(--muted2);font-size:.85rem;margin-top:.5rem;">
+        You scored {{ correct }}/{{ total }}. The <strong style="color:var(--g3);">Verified ✅</strong> badge has been added to your profile and Trust Score updated.
+      </p>
+    {% else %}
+      <div class="result-icon">😔</div>
+      <div class="score-display" style="color:var(--g4);">{{ score }}%</div>
+      <div class="badge-u" style="font-size:.88rem;margin:.75rem auto .5rem;display:inline-flex;gap:5px;padding:.3rem .9rem;">
+        <i class="bi bi-x-circle"></i> Not Verified Yet
+      </div>
+      <p style="color:var(--muted2);font-size:.85rem;margin-top:.5rem;">
+        You scored {{ correct }}/{{ total }}. You need <strong>70%</strong> to earn the verified badge. Keep practicing!
+      </p>
+    {% endif %}
+    <div class="res-bar">
+      <div class="res-bar-fill" id="resFill"
+           style="background:{{ 'linear-gradient(90deg,var(--g3),var(--g2))' if passed else 'var(--g4)' }}"></div>
+    </div>
+    <div style="display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;">
+      {% if not passed %}
+        <a href="/student/quiz/{{ skill_name }}{% if job_id %}/{{ job_id }}{% endif %}" class="btn-rv">
+          <i class="bi bi-arrow-repeat"></i> Retry Quiz
+        </a>
+      {% endif %}
+      {% if job_id %}
+        <a href="/student/dashboard" class="btn-rv" style="background:linear-gradient(135deg,var(--g3),var(--g2));color:#000;">
+          <i class="bi bi-grid"></i> Back to Dashboard
+        </a>
+      {% else %}
+        <a href="/student/dashboard" class="btn-ghost"><i class="bi bi-grid"></i> Dashboard</a>
+      {% endif %}
+    </div>
+    {% if passed %}
+    <div style="margin-top:1.25rem;padding:.7rem 1rem;background:rgba(0,229,160,.07);border:1px solid rgba(0,229,160,.2);border-radius:10px;font-size:.8rem;color:var(--g3);">
+      <i class="bi bi-arrow-up-circle-fill me-1"></i> Your Trust Score has been recalculated!
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+window.addEventListener('load',()=>{
+  setTimeout(()=>{ document.getElementById('resFill').style.width='{{ score }}%'; },200);
+});
+</script>
+{% endblock %}

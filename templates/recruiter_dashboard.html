@@ -1,0 +1,705 @@
+{% extends "base.html" %}
+{% block title %}Recruiter Dashboard — ResumeVis 2.0{% endblock %}
+
+{% block nav_links %}
+  <span class="nav-link" style="cursor:default;color:var(--muted2)!important;">
+    <i class="bi bi-briefcase me-1"></i>{{ session.recruiter_name }}
+    {% if session.recruiter_company %}<span style="opacity:.5;"> · {{ session.recruiter_company }}</span>{% endif %}
+  </span>
+  <a class="nav-pill" href="/recruiter/logout"><i class="bi bi-box-arrow-right me-1"></i>Logout</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .rec-grid { display: grid; grid-template-columns: 320px 1fr; gap: 1.25rem; }
+  @media(max-width:960px){ .rec-grid{ grid-template-columns:1fr; } }
+
+  /* ── Job panel ── */
+  .job-panel { display: flex; flex-direction: column; gap: 1rem; }
+  .job-select-wrap { position: relative; }
+  .job-select-wrap select {
+    width: 100%; appearance: none;
+    background: rgba(124,107,255,.08);
+    border: 1px solid rgba(124,107,255,.3);
+    color: var(--text);
+    border-radius: 12px;
+    padding: .65rem 2.5rem .65rem .9rem;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color .18s;
+  }
+  .job-select-wrap select:focus { outline: none; border-color: var(--g1); }
+  .job-select-wrap::after {
+    content: '\f282'; font-family: 'bootstrap-icons';
+    position: absolute; right: .75rem; top: 50%; transform: translateY(-50%);
+    color: var(--g1); pointer-events: none; font-size: .8rem;
+  }
+  .job-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .job-stat {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: .65rem .8rem;
+    text-align: center;
+  }
+  .job-stat-num { font-size: 1.4rem; font-weight: 800; line-height: 1; }
+  .job-stat-lbl { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+  /* ── Post job form ── */
+  .post-job-form { display: none; }
+  .post-job-form.show { display: block; }
+
+  /* ── Filters ── */
+  .filter-bar {
+    display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end;
+    margin-bottom: 1rem;
+  }
+  .filter-bar .form-control,
+  .filter-bar .form-select { font-size: .8rem; padding: .45rem .8rem; border-radius: 8px; }
+  .sort-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: .75rem; font-weight: 600;
+    padding: .35rem .8rem; border-radius: 8px;
+    background: rgba(255,255,255,.04);
+    border: 1px solid var(--border2);
+    color: var(--muted2); cursor: pointer; transition: all .18s;
+    text-decoration: none;
+  }
+  .sort-btn.active, .sort-btn:hover { border-color: var(--g1); color: var(--g1); background: rgba(124,107,255,.08); }
+
+  /* ── Candidate cards ── */
+  .cand-card {
+    background: rgba(255,255,255,.025);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1rem 1.1rem;
+    margin-bottom: .6rem;
+    transition: border-color .18s, transform .15s;
+    cursor: pointer;
+  }
+  .cand-card:hover { border-color: rgba(124,107,255,.4); transform: translateX(2px); }
+  .cand-avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1rem; color: #fff; flex-shrink: 0;
+  }
+  .mini-ring {
+    border-radius: 50%;
+    background: conic-gradient(var(--g1) calc(var(--pct)*1%), rgba(255,255,255,.07) 0%);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; flex-shrink: 0;
+    width: 48px; height: 48px;
+  }
+  .mini-ring::before { content:''; position:absolute; width:35px; height:35px; background:var(--card); border-radius:50%; }
+  .mini-ring span { position:relative; z-index:1; font-size:.78rem; font-weight:800; }
+
+  /* ── Modal ── */
+  .cand-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(7,8,15,.88); z-index: 1000;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(6px);
+  }
+  .cand-modal-overlay.show { display: flex; }
+  .cand-modal {
+    background: var(--card);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    width: 90vw;
+    height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    padding: 1.75rem;
+    position: relative;
+  }
+  .modal-close {
+    position: absolute; top: 1rem; right: 1rem;
+    background: rgba(255,255,255,.07);
+    border: none; border-radius: 8px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--muted2); font-size: 1rem;
+    transition: background .18s;
+  }
+  .modal-close:hover { background: rgba(255,101,132,.15); color: var(--g4); }
+  .modal-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 0; margin-bottom: 1.25rem; flex-shrink: 0; }
+  .modal-tab {
+    font-size: .8rem; font-weight: 600; padding: .45rem .9rem;
+    border: none; background: transparent; color: var(--muted2);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .18s;
+  }
+  .modal-tab.active { color: var(--text); border-bottom-color: var(--g1); }
+  .modal-pane { display: none; flex: 1; overflow-y: auto; padding-right: 6px; min-height: 0; }
+  .modal-pane.active { display: block; }
+  /* ── skill bar ── */
+  .m-skill-row { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-bottom:1px solid var(--border); font-size:.82rem; }
+  .m-skill-row:last-child { border-bottom:none; }
+  .m-bar-track { flex:1; height:5px; background:rgba(255,255,255,.07); border-radius:3px; overflow:hidden; }
+  .m-bar-fill  { height:100%; background:var(--grad); border-radius:3px; transition:width 1s ease; }
+
+  /* ── tl ── */
+  .tl { position:relative; padding-left:1.25rem; }
+  .tl::before { content:''; position:absolute; left:4px; top:8px; bottom:4px; width:2px; background:linear-gradient(180deg,var(--g1),transparent); border-radius:1px; }
+  .tl-item { display:flex; gap:.6rem; margin-bottom:.6rem; }
+  .tl-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px; }
+
+  /* empty states */
+  .empty { text-align:center; padding:3.5rem 1.5rem; color:var(--muted); }
+  .empty i { font-size:2.5rem; display:block; margin-bottom:.75rem; opacity:.3; }
+  .chart-box {
+    width: 100%;
+    max-width: 100%;
+    height: 300px;
+    margin-top: 1rem;
+    position: relative;
+  }
+
+  .chart-box canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .side-tab {
+    width: 100%; text-align: left; background: transparent;
+    border: none; border-radius: 8px; padding: 8px 10px;
+    color: var(--muted2); font-size: .8rem; cursor: pointer;
+    transition: all .15s; border-left: 2px solid transparent;
+  }
+  .side-tab.active, .side-tab:hover {
+    background: rgba(124,107,255,.08);
+    color: var(--text);
+    border-left-color: var(--g1);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:1.25rem;">
+  <div>
+    <h4 style="font-weight:800;font-size:1.2rem;letter-spacing:-.3px;margin-bottom:2px;">Recruiter Dashboard</h4>
+    <span class="text-muted-rv" style="font-size:.8rem;">{{ my_jobs|length }} job{{ 's' if my_jobs|length!=1 }} posted</span>
+  </div>
+  <button class="btn-rv" onclick="document.getElementById('postJobForm').classList.toggle('show')">
+    <i class="bi bi-plus-lg"></i> Post New Job
+  </button>
+</div>
+
+<!-- Post job form (collapsible) -->
+<div class="card-rv post-job-form" id="postJobForm" style="margin-bottom:1.25rem;">
+  <div class="sec-label" style="margin-bottom:.9rem;">New Job Listing</div>
+  <form action="/recruiter/post_job" method="POST">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+      <div>
+        <label class="form-label">Job Title *</label>
+        <input type="text" name="title" class="form-control" placeholder="e.g. Senior Python Developer" required/>
+      </div>
+      <div>
+        <label class="form-label">Job Type</label>
+        <select name="job_type" class="form-select">
+          <option>Full-time</option><option>Part-time</option>
+          <option>Internship</option><option>Contract</option><option>Remote</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Location</label>
+        <input type="text" name="location" class="form-control" placeholder="e.g. Bengaluru / Remote"/>
+      </div>
+      <div>
+        <label class="form-label">Salary / CTC</label>
+        <input type="text" name="salary" class="form-control" placeholder="e.g. 8–12 LPA"/>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label class="form-label">Required Skills <span style="color:var(--muted);font-weight:400;">(comma-separated)</span></label>
+        <input type="text" name="skills_required" class="form-control" placeholder="Python, SQL, Machine Learning"/>
+      </div>
+      <div style="grid-column:1/-1;">
+        <label class="form-label">Job Description</label>
+        <textarea name="description" class="form-control" rows="3" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:.6rem;margin-top:.9rem;">
+      <button type="submit" class="btn-rv"><i class="bi bi-check-lg"></i> Post Job</button>
+      <button type="button" class="btn-ghost" onclick="document.getElementById('postJobForm').classList.remove('show')">Cancel</button>
+    </div>
+  </form>
+</div>
+
+<div class="rec-grid">
+  <!-- ══ LEFT: Job selector ══ -->
+  <div class="job-panel">
+    <div class="card-rv" style="padding:1.1rem;">
+      <div class="sec-label">Select Job to View Applicants</div>
+      <div class="job-select-wrap">
+        <select id="jobSelector" onchange="selectJob(this.value)">
+          <option value="">— Choose a job —</option>
+          {% for j in my_jobs %}
+          <option value="{{ j._id }}" {{ 'selected' if j._id == selected_job_id }}>
+            {{ j.title }} ({{ j.applicant_count }})
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if selected_job %}
+      <div style="margin-top:1rem;">
+        <div style="font-weight:700;font-size:.95rem;margin-bottom:.25rem;">{{ selected_job.title }}</div>
+        <div style="font-size:.78rem;color:var(--muted2);margin-bottom:.75rem;">
+          {% if selected_job.location %}<i class="bi bi-geo-alt me-1"></i>{{ selected_job.location }} · {% endif %}
+          {{ selected_job.job_type or 'Full-time' }}
+          {% if selected_job.salary %} · {{ selected_job.salary }}{% endif %}
+        </div>
+        <div class="job-stat-grid">
+          <div class="job-stat">
+            <div class="job-stat-num grad-text">{{ candidates|length }}</div>
+            <div class="job-stat-lbl">Applicants</div>
+          </div>
+          <div class="job-stat">
+            <div class="job-stat-num" style="color:var(--g3);">
+              {{ candidates | selectattr("app_status","equalto","quiz_completed") | list | length }}
+            </div>
+            <div class="job-stat-lbl">Quiz Done</div>
+          </div>
+          <div class="job-stat">
+            {% if candidates %}
+            <div class="job-stat-num" style="color:var(--g2);">
+              {{ (candidates | map(attribute='trust_score') | sum / candidates|length) | round | int }}
+            </div>
+            {% else %}
+            <div class="job-stat-num" style="color:var(--g2);">—</div>
+            {% endif %}
+            <div class="job-stat-lbl">Avg Trust</div>
+          </div>
+          <div class="job-stat">
+            {% if candidates %}
+            <div class="job-stat-num" style="color:var(--g5);">{{ candidates[0].trust_score }}</div>
+            {% else %}
+            <div class="job-stat-num" style="color:var(--g5);">—</div>
+            {% endif %}
+            <div class="job-stat-lbl">Top Score</div>
+          </div>
+        </div>
+        {% if selected_job.skills_required %}
+        <div style="margin-top:.9rem;">
+          <div class="sec-label">Required Skills</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.3rem;">
+            {% for sk in selected_job.skills_required %}
+            <span class="badge-info">{{ sk }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+        {% if selected_job.description %}
+        <div style="margin-top:.9rem;font-size:.8rem;color:var(--muted2);line-height:1.6;">
+          {{ selected_job.description[:300] }}{% if selected_job.description|length>300 %}…{% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Jobs list summary -->
+    <div class="card-rv" style="padding:1rem;">
+      <div class="sec-label">All Your Jobs</div>
+      {% for j in my_jobs %}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem .6rem;border-radius:9px;
+                  background:{{ 'rgba(124,107,255,.1)' if j._id==selected_job_id else 'rgba(255,255,255,.02)' }};
+                  border:1px solid {{ 'rgba(124,107,255,.3)' if j._id==selected_job_id else 'var(--border)' }};
+                  margin-bottom:.35rem;cursor:pointer;transition:all .18s;"
+           onclick="selectJob('{{ j._id }}')">
+        <div>
+          <div style="font-size:.82rem;font-weight:600;">{{ j.title }}</div>
+          <div style="font-size:.7rem;color:var(--muted);">{{ j.job_type or 'Full-time' }}</div>
+        </div>
+        <span class="badge-info" style="font-size:.68rem;">{{ j.applicant_count }} applied</span>
+      </div>
+      {% else %}
+      <div class="empty" style="padding:1.5rem;">
+        <i class="bi bi-inbox" style="font-size:1.8rem;"></i>
+        <div style="font-size:.8rem;">No jobs posted yet</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ══ RIGHT: Candidates ══ -->
+  <div>
+    {% if selected_job %}
+    <!-- Filter bar -->
+    <form method="GET" action="/recruiter/dashboard" style="margin-bottom:1rem;">
+      <input type="hidden" name="job_id" value="{{ selected_job_id }}"/>
+      <div class="filter-bar">
+        <div>
+          <label class="form-label" style="margin-bottom:3px;">Skill (verified)</label>
+          <input type="text" name="skill" class="form-control" style="width:160px;"
+                 placeholder="Python, SQL…" value="{{ skill_filter }}"/>
+        </div>
+        <div>
+          <label class="form-label" style="margin-bottom:3px;">Min Trust</label>
+          <input type="number" name="min_score" class="form-control" style="width:90px;"
+                 min="0" max="100" value="{{ min_score }}"/>
+        </div>
+        <div style="align-self:flex-end;">
+          <button type="submit" class="btn-rv" style="height:38px;"><i class="bi bi-funnel-fill"></i> Filter</button>
+        </div>
+        {% if skill_filter or min_score %}<div style="align-self:flex-end;">
+          <a href="/recruiter/dashboard?job_id={{ selected_job_id }}" class="btn-ghost" style="height:38px;">Clear</a>
+        </div>{% endif %}
+      </div>
+      <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:.72rem;color:var(--muted);margin-right:.25rem;">Sort by:</span>
+        {% for s, lbl in [('trust_score','Trust Score'),('quiz_score','Quiz Score'),('name','Name')] %}
+        <a href="/recruiter/dashboard?job_id={{ selected_job_id }}&skill={{ skill_filter }}&min_score={{ min_score }}&sort={{ s }}"
+           class="sort-btn {{ 'active' if sort_by == s }}">{{ lbl }}</a>
+        {% endfor %}
+      </div>
+    </form>
+
+    {% if candidates %}
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem;">
+      Showing {{ candidates|length }} applicant{{ 's' if candidates|length != 1 }}
+    </div>
+    {% for c in candidates %}
+    <div class="cand-card" onclick="openCandidate('{{ c.id }}')">
+      <div style="display:flex;align-items:center;gap:.85rem;">
+        {% set ini = (c.name.split()[0][0] + (c.name.split()[1][0] if c.name.split()|length>1 else '')) | upper %}
+        {% set bgs = ['linear-gradient(135deg,#7c6bff,#40c4ff)','linear-gradient(135deg,#00e5a0,#40c4ff)','linear-gradient(135deg,#ff6584,#ffb547)','linear-gradient(135deg,#7c6bff,#ff6584)'] %}
+        <div class="cand-avatar" style="background:{{ bgs[loop.index0 % 4] }}">{{ ini }}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.9rem;">{{ c.name }}</div>
+          <div style="font-size:.75rem;color:var(--muted2);">{{ c.email }}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem;">
+            {% for sk in c.skills[:4] %}
+              {% if sk.verified_status == 'verified' %}
+                <span class="badge-v" style="font-size:.68rem;padding:.12rem .5rem;">✓ {{ sk.skill_name }}</span>
+              {% endif %}
+            {% endfor %}
+            {% if c.certs %}
+              {% set vc = c.certs | selectattr("verified_status","equalto","verified") | list %}
+              {% if vc %}<span class="badge-info" style="font-size:.68rem;padding:.12rem .5rem;"><i class="bi bi-award-fill me-1"></i>{{ vc|length }} cert{{ 's' if vc|length!=1 }}</span>{% endif %}
+            {% endif %}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.4rem;flex-shrink:0;">
+          <div class="mini-ring" style="--pct:{{ c.trust_score }};">
+            <span>{{ c.trust_score }}</span>
+          </div>
+          {% if c.app_status == 'quiz_completed' %}
+            <span class="badge-v" style="font-size:.68rem;">Quiz: {{ c.quiz_score }}%</span>
+          {% else %}
+            <span class="badge-amber" style="font-size:.68rem;">Applied</span>
+          {% endif %}
+          <span style="font-size:.68rem;color:var(--muted);">{{ c.applied_at }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty card-rv">
+      <i class="bi bi-person-x"></i>
+      <div style="font-weight:600;">No applicants found</div>
+      <div style="font-size:.8rem;margin-top:.3rem;">Try adjusting your filters.</div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty card-rv" style="margin-top:0;">
+      <i class="bi bi-arrow-left-circle"></i>
+      <div style="font-weight:600;margin-bottom:.3rem;">Select a job to view applicants</div>
+      <div style="font-size:.8rem;">Use the dropdown on the left to choose a job listing.</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══ Candidate Modal ══ -->
+<div class="cand-modal-overlay" id="candOverlay" onclick="if(event.target===this)closeCandidate()">
+  <div class="cand-modal" id="candModal">
+    <button class="modal-close" onclick="closeCandidate()"><i class="bi bi-x-lg"></i></button>
+    <div id="modalContent" style="min-height:300px;display:flex;align-items:center;justify-content:center;">
+      <div class="spinner-border text-secondary" role="status" style="width:1.5rem;height:1.5rem;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectJob(id) {
+  if (!id) return;
+  const params = new URLSearchParams(window.location.search);
+  params.set('job_id', id);
+  window.location.href = '/recruiter/dashboard?' + params.toString();
+}
+
+let modalCharts = [];
+let currentCandidate = null;
+let cachedData = {};
+
+function openCandidate(sid) {
+  document.getElementById('candOverlay').classList.add('show');
+  document.getElementById('modalContent').innerHTML =
+    '<div class="spinner-border text-secondary" role="status" style="width:1.5rem;height:1.5rem;"></div>';
+
+  fetch('/recruiter/candidate/' + sid + '/json')
+    .then(r => r.json())
+    .then(d => renderModal(d))
+    .catch(err => {
+      console.error('Profile load error:', err);
+      document.getElementById('modalContent').innerHTML =
+        '<div style="color:var(--g4);">Failed to load profile.</div>';
+    });
+}
+
+function closeCandidate() {
+  document.getElementById('candOverlay').classList.remove('show');
+  modalCharts.forEach(c => c.destroy());
+  modalCharts = [];
+}
+
+function renderModal(d) {
+  currentCandidate = d;
+
+  const ini = (d.name.split(' ').map(w => w[0]).join('').toUpperCase()).slice(0, 2);
+  const vSkills = d.skills.filter(s => s.verified).length;
+  const uvSkills = d.skills.length - vSkills;
+  const vCerts = d.certs.filter(c => c.status === 'verified').length;
+
+  // ✅ FIX: avgQuiz was missing — caused the crash
+  const avgQuiz = d.skills.length
+    ? Math.round(d.skills.reduce((a, s) => a + s.score, 0) / d.skills.length)
+    : 0;
+
+  let skillRows = d.skills.map(s => `
+    <div class="m-skill-row">
+      <div style="min-width:110px;font-weight:600;">${s.skill}</div>
+      <div class="m-bar-track"><div class="m-bar-fill" style="width:${s.score}%"></div></div>
+      <div style="min-width:36px;text-align:right;color:var(--muted);font-size:.75rem;">${s.score}%</div>
+      ${s.verified
+        ? '<span class="badge-v" style="font-size:.65rem;padding:.1rem .45rem;"><i class="bi bi-check-circle-fill"></i></span>'
+        : '<span class="badge-u" style="font-size:.65rem;padding:.1rem .45rem;"><i class="bi bi-x-circle"></i></span>'}
+    </div>`).join('') || '<div style="color:var(--muted);font-size:.82rem;">No skills data.</div>';
+
+  let certRows = d.certs.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--border);gap:.5rem;">
+      <div>
+        <div style="font-size:.83rem;font-weight:600;">${c.name}</div>
+        <div style="display:flex;gap:.4rem;margin-top:.2rem;align-items:center;">
+          <span class="provider-pill">${c.provider || '—'}</span>
+          <code style="font-size:.7rem;color:var(--muted);">${c.number}</code>
+        </div>
+      </div>
+      ${c.status === 'verified'
+        ? '<span class="badge-v" style="font-size:.7rem;">✅ Verified</span>'
+        : '<span class="badge-u" style="font-size:.7rem;">⚠️ Unverified</span>'}
+    </div>`).join('') || '<div style="color:var(--muted);font-size:.82rem;">No certifications.</div>';
+
+  let eduItems = (d.resume?.education || []).map(e => `
+    <div class="tl-item">
+      <div class="tl-dot" style="background:var(--g1);"></div>
+      <div style="font-size:.8rem;">${e}</div>
+    </div>`).join('');
+
+  let expItems = (d.resume?.experience || []).map(e => `
+    <div class="tl-item">
+      <div class="tl-dot" style="background:var(--g2);"></div>
+      <div style="font-size:.8rem;">${e}</div>
+    </div>`).join('');
+
+  cachedData = { skillRows, certRows, eduItems, expItems, vSkills, uvSkills };
+
+  // ✅ Correct modal structure: remove old padding, use flex column layout
+  const modal = document.getElementById('candModal');
+  modal.style.padding = '0';
+  modal.style.overflow = 'hidden';
+
+  document.getElementById('modalContent').style.cssText =
+    'display:flex; flex-direction:column; height:100%; min-height:unset; align-items:unset; justify-content:unset;';
+
+  document.getElementById('modalContent').innerHTML = `
+
+    <!-- ── STATIC HEADER ── -->
+    <div style="
+      display:grid;
+      grid-template-columns: auto 1fr auto auto auto auto;
+      align-items:center;
+      gap:14px;
+      padding:14px 20px;
+      background:rgba(255,255,255,.025);
+      border-bottom:1px solid var(--border);
+      flex-shrink:0;
+    ">
+      <div class="cand-avatar" style="background:var(--grad);width:46px;height:46px;font-size:1rem;">${ini}</div>
+      <div>
+        <div style="font-size:.95rem;font-weight:700;">${d.name}</div>
+        <div style="font-size:.75rem;color:var(--muted2);">${d.email}</div>
+      </div>
+      <div class="job-stat">
+        <div class="job-stat-num" style="color:var(--g3);">${vSkills}</div>
+        <div class="job-stat-lbl">Verified Skills</div>
+      </div>
+      <div class="job-stat">
+        <div class="job-stat-num" style="color:var(--g2);">${vCerts}</div>
+        <div class="job-stat-lbl">Verified Certs</div>
+      </div>
+      <div class="job-stat">
+        <div class="job-stat-num" style="color:var(--g5);">${avgQuiz}%</div>
+        <div class="job-stat-lbl">Avg Quiz Score</div>
+      </div>
+      <div class="job-stat">
+        <div class="job-stat-num grad-text">${d.trust_score}</div>
+        <div class="job-stat-lbl">Trust Score</div>
+      </div>
+    </div>
+
+    <!-- ── BODY: sidebar + content ── -->
+    <div style="display:grid; grid-template-columns:160px 1fr; flex:1; min-height:0; overflow:hidden;">
+
+      <!-- Left sidebar -->
+      <div style="
+        border-right:1px solid var(--border);
+        padding:10px 8px;
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+        overflow-y:auto;
+        background:rgba(255,255,255,.015);
+      ">
+        <button class="side-tab active" onclick="switchSideTab(event,'overview')">
+          <i class="bi bi-person-lines-fill me-2"></i>Overview
+        </button>
+        <button class="side-tab" onclick="switchSideTab(event,'skills')">
+          <i class="bi bi-bar-chart-fill me-2"></i>Skills
+        </button>
+        <button class="side-tab" onclick="switchSideTab(event,'certs')">
+          <i class="bi bi-award-fill me-2"></i>Certifications
+        </button>
+        <button class="side-tab" onclick="switchSideTab(event,'trajectory')">
+          <i class="bi bi-graph-up me-2"></i>Trajectory
+        </button>
+        <button class="side-tab" onclick="switchSideTab(event,'relations')">
+          <i class="bi bi-diagram-3-fill me-2"></i>Interpersonal
+        </button>
+      </div>
+
+      <!-- Dynamic content area -->
+      <div id="sideContent" style="overflow-y:auto; padding:1.25rem;"></div>
+
+    </div>
+  `;
+
+  // Load overview by default
+  setTimeout(() => {
+    const firstTab = document.querySelector('.side-tab');
+    if (firstTab) switchSideTab({ target: firstTab }, 'overview');
+  }, 50);
+}
+
+// ── Chart renderers ──────────────────────────────────────────────────────────
+
+function renderSkillChart() {
+  const ctx = document.getElementById('modalSkillChart');
+  if (!ctx) return;
+  const { vSkills, uvSkills } = cachedData;
+  modalCharts.push(new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Verified', 'Unverified'],
+      datasets: [{ data: [vSkills, uvSkills], backgroundColor: ['rgba(0,229,160,.75)', 'rgba(255,101,132,.55)'] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  }));
+}
+
+function renderTrajectoryChart() {
+  const ctx = document.getElementById('trajChart');
+  const d = currentCandidate;
+  if (!ctx || !d || !d.trajectory.length) return;
+  modalCharts.push(new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: d.trajectory.map(t => t.skill),
+      datasets: [{ data: d.trajectory.map(t => t.score), borderWidth: 2, tension: .3, borderColor: 'rgba(124,107,255,1)', backgroundColor: 'rgba(124,107,255,.15)', fill: true }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  }));
+}
+
+function renderRadarChart() {
+  const ctx = document.getElementById('radarChart');
+  const d = currentCandidate;
+  if (!ctx || !d) return;
+  modalCharts.push(new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: d.skills.map(s => s.skill),
+      datasets: [{ data: d.skills.map(s => s.score), borderWidth: 2, borderColor: 'rgba(124,107,255,1)', backgroundColor: 'rgba(124,107,255,.15)' }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  }));
+}
+
+// ── Tab switcher ─────────────────────────────────────────────────────────────
+
+function switchSideTab(e, tab) {
+  modalCharts.forEach(c => c.destroy());
+  modalCharts = [];
+
+  document.querySelectorAll('.side-tab').forEach(b => b.classList.remove('active'));
+  if (e && e.target) e.target.classList.add('active');
+
+  const container = document.getElementById('sideContent');
+  const d = currentCandidate;
+  const { skillRows, certRows, eduItems, expItems } = cachedData;
+
+  if (tab === 'overview') {
+    container.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+        <div>
+          ${eduItems
+            ? `<div class="sec-label" style="margin-bottom:.6rem;">Education</div><div class="tl">${eduItems}</div>`
+            : '<div style="color:var(--muted);font-size:.82rem;">No education data.</div>'}
+        </div>
+        <div>
+          ${expItems
+            ? `<div class="sec-label" style="margin-bottom:.6rem;">Experience</div><div class="tl">${expItems}</div>`
+            : '<div style="color:var(--muted);font-size:.82rem;">No experience data.</div>'}
+        </div>
+      </div>`;
+  }
+
+  if (tab === 'skills') {
+    container.innerHTML = `
+      <div class="sec-label" style="margin-bottom:.6rem;">Skill Details</div>
+      ${skillRows}
+      <div class="sec-label" style="margin-top:1.25rem;margin-bottom:.6rem;">Verified vs Unverified</div>
+      <div class="chart-box"><canvas id="modalSkillChart"></canvas></div>`;
+    renderSkillChart();
+  }
+
+  if (tab === 'certs') {
+    container.innerHTML = `
+      <div class="sec-label" style="margin-bottom:.6rem;">Certifications</div>
+      ${certRows}`;
+  }
+
+  if (tab === 'trajectory') {
+    container.innerHTML = d.trajectory && d.trajectory.length
+      ? `<div class="sec-label" style="margin-bottom:.6rem;">Score Trajectory</div>
+         <div class="chart-box"><canvas id="trajChart"></canvas></div>`
+      : `<div style="text-align:center;padding:3rem;color:var(--muted);">No quiz history yet.</div>`;
+    renderTrajectoryChart();
+  }
+
+  if (tab === 'relations') {
+    container.innerHTML = `
+      <div class="sec-label" style="margin-bottom:.6rem;">Skill Radar</div>
+      <div class="chart-box"><canvas id="radarChart"></canvas></div>`;
+    renderRadarChart();
+  }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCandidate(); });
+</script>
+{% endblock %}
